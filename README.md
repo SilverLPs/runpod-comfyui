@@ -6,17 +6,19 @@ This setup explicitly targets a **new, disposable/immutable RunPod instance**. I
 
 ## 1. RunPod template
 
-Use the official **PyTorch 2.8/CUDA 12.8 image** with Python 3.11, for example:
+Use the official **PyTorch 2.8/CUDA 12.8.1 image** with Python 3.12:
 
 ```text
-runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404
 ```
 
-Choose an RTX 4090 or a GPU with a comparable amount of VRAM. At startup, the script checks the **versions that are actually installed**: Python 3.11, PyTorch 2.8.0, the CUDA 12.8 PyTorch build, cuDNN, and an accessible CUDA GPU. It does not silently modify an incorrectly labeled image.
+Choose an RTX 4090 or a GPU with a comparable amount of VRAM. At startup, the script checks the **versions that are actually installed**: Python 3.12, PyTorch 2.8.0, the CUDA 12.8 PyTorch build, cuDNN, and an accessible CUDA GPU. It does not silently modify an incorrectly labeled image.
 
 Expose **HTTP port 8188** in the RunPod template. Also expose port 8888 if you need JupyterLab. Allow enough storage for the models: approximately 25–35 GB of free space in addition to the image. Model variants and download caches can increase this requirement. Generated files are written to `/workspace/ComfyUI/output/`.
 
-ComfyUI 0.36.0 supports Python 3.10 or newer and does not require a newer PyTorch release in its `requirements.txt`. A Linux Python 3.11 wheel is available for `comfy-kitchen==0.2.34`. A custom Docker image is therefore not required for native TRELLIS.2/Pixal3D support. **This script has not yet completed a full end-to-end test on the specified RunPod image.**
+ComfyUI 0.36.0 supports Python 3.10 or newer and does not require a newer PyTorch release in its `requirements.txt`. A Linux Python 3.12+ wheel is available for `comfy-kitchen==0.2.34`. A custom Docker image is therefore not required for native TRELLIS.2/Pixal3D support.
+
+The complete setup was tested successfully on September 16, 2026, using the specified image and an RTX 4090. A fresh installation, all model downloads, ComfyUI startup, and both branches of the official workflow completed successfully. Pixal3D and TRELLIS.2 each produced a textured GLB file.
 
 ## 2. Installation
 
@@ -111,6 +113,7 @@ For a fully reproducible build, also pin the RunPod Docker image by **digest** i
 ## 5. Limitations and troubleshooting
 
 - **The PyTorch check fails:** The image label does not match the installed runtime, or the GPU/driver is not configured correctly. Check it inside the container with `python -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())'`. The script does not automatically replace PyTorch.
+- **`comfy-kitchen` prints a CUDA 13 optimization warning:** The CUDA 12.8 image uses its eager fallback because the newest optimized kernels require CUDA 13. The tested INT8 Pixal3D and TRELLIS.2 workflows still complete successfully, but a matching future CUDA 13 image may be faster. Do not replace only PyTorch inside this image; switch the complete base image after testing it.
 - **`pip` cannot find a compatible build:** The requirements of the selected ComfyUI release may have changed. On a fresh image, deliberately change the base image or ComfyUI release instead of blindly downgrading PyTorch.
 - **A download fails:** Check the available disk space and access to Hugging Face. With the immutable-instance approach, reset the pod and retry.
 - **Out of memory on a 24 GB GPU:** Start with INT8 and reduce the resolution and mesh post-processing settings. A complete PBR/remeshing workflow can require considerably more memory than model inference alone.
@@ -126,6 +129,6 @@ This repository is intended to be public. Local instance metadata, environment f
 - [ComfyUI v0.36.0](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.36.0)
 - [ComfyUI v0.36.0 requirements](https://raw.githubusercontent.com/Comfy-Org/ComfyUI/v0.36.0/requirements.txt)
 - [RunPod PyTorch 2.8/CUDA 12.8](https://www.runpod.io/articles/guides/pytorch-2-8-cuda-12-8)
-- [RunPod PyTorch Docker tag](https://hub.docker.com/layers/runpod/pytorch/2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04/images/sha256-cb154fcca15d1d6ce858cfa672b76505e30861ef981d28ec94bd44168767d853)
+- [RunPod PyTorch Docker tag](https://hub.docker.com/layers/runpod/pytorch/1.0.2-cu1281-torch280-ubuntu2404/images/sha256-4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851)
 - [Official 3D workflow v0.11.62](https://raw.githubusercontent.com/Comfy-Org/workflow_templates/v0.11.62/templates/3d_pixal3d_trellis2_image_to_model.json)
 - [TRELLIS.2 models](https://huggingface.co/Comfy-Org/TRELLIS.2) · [Pixal3D models](https://huggingface.co/Comfy-Org/Pixal3D) · [BiRefNet](https://huggingface.co/Comfy-Org/BiRefNet) · [MoGe](https://huggingface.co/Comfy-Org/MoGe)

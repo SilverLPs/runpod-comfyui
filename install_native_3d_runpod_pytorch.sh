@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # Native TRELLIS.2 + Pixal3D on a FRESH RunPod PyTorch image (one-shot setup)
 # =============================================================================
 # Suggested base image:
-#   runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+#   runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404
 # Verified ComfyUI release for this script: v0.36.0 (2026-09-16).
 # Official native implementation: https://blog.comfy.org/p/trellis2-and-pixal3d-are-now-native
 #
@@ -66,14 +66,14 @@ trap 'on_error "$LINENO"' ERR
 [[ ! -e "$COMFY_ROOT" && ! -L "$COMFY_ROOT" ]] || die "Destination already exists: $COMFY_ROOT. Reset this immutable pod or choose a fresh COMFY_ROOT."
 command -v "$BASE_PYTHON" >/dev/null || die "Base Python not found: $BASE_PYTHON"
 
-# RunPod's PyTorch image is PYTHON 3.11. Do NOT reuse paths/venvs from the
-# official RunPod ComfyUI image (which used Python 3.12 + .venv-cu128).
+# The selected RunPod PyTorch image defaults to Python 3.12. Do not reuse a
+# virtual environment created by another image or Python interpreter.
 log 'Checking actual RunPod Python, PyTorch, CUDA and cuDNN (not the image label)'
 "$BASE_PYTHON" - <<'PY'
 import sys
 import torch
-assert sys.version_info[:2] == (3, 11), (
-    f"Expected Python 3.11 on the specified RunPod image; found {sys.version.split()[0]}"
+assert sys.version_info[:2] == (3, 12), (
+    f"Expected Python 3.12 on the specified RunPod image; found {sys.version.split()[0]}"
 )
 assert torch.__version__.split('+', 1)[0] == '2.8.0', (
     f"Expected torch 2.8.0 but found {torch.__version__}; some RunPod tags historically shipped another build."
@@ -96,13 +96,15 @@ fi
 
 log 'Installing essential Linux system packages for Git, OpenGL and 3D processing'
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends \
+# Some RunPod hosts publish no IPv6 route even when DNS returns IPv6 addresses.
+# Force IPv4 so Ubuntu repository access does not fail before trying IPv4.
+apt-get -o Acquire::ForceIPv4=true update
+apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
     git curl ca-certificates libgl1 libopengl0 libegl1 libglib2.0-0 libgomp1
 
-# ComfyUI v0.36.0 requires Python >=3.10, NOT Python 3.12.  Its requirements
-# list torch without requiring a newer build, and native 3D avoids separate
-# native CUDA extension wheels. Use RunPod's installed PyTorch in the venv.
+# ComfyUI v0.36.0 requires Python >=3.10 and supports this image's Python 3.12.
+# Its requirements list torch without requiring a newer build, and native 3D
+# avoids separate native CUDA extension wheels. Reuse RunPod's PyTorch.
 log "Cloning immutable ComfyUI release $COMFY_REF"
 mkdir -p "$(dirname "$COMFY_ROOT")"
 git clone --depth 1 --branch "$COMFY_REF" \
@@ -120,7 +122,7 @@ PY
 
 log 'Creating isolated ComfyUI venv with access to the image-provided PyTorch'
 "$BASE_PYTHON" -m venv --system-site-packages "$VENV" || die \
-    'Cannot create venv. Check whether the selected image has python3.11-venv / ensurepip.'
+    'Cannot create venv. Check whether the selected image has python3.12-venv / ensurepip.'
 "$PYTHON" -m pip --version >/dev/null || die 'pip is not available in the ComfyUI venv.'
 
 # Pin the *installed* Torch family in pip resolution. Otherwise a future
